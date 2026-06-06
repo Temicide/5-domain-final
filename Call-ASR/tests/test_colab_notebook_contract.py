@@ -37,13 +37,23 @@ def test_notebook_script_writes_required_submission_path():
 def test_notebook_script_downloads_and_extracts_before_reading():
     source = NOTEBOOK_SCRIPT.read_text(encoding="utf-8") + _notebook_source()
 
-    assert "ensure_kaggle_package" in source
+    assert "install_colab_dependencies" in source
     assert "configure_kaggle_credentials" in source
     assert "download_and_extract_competition_data" in source
     assert '"competitions"' in source
     assert '"download"' in source
     assert ".extractall" in source
     assert source.index("download_and_extract_competition_data()") < source.index("resolve_competition_paths(")
+
+
+def test_notebook_is_self_contained_for_colab_imports():
+    source = NOTEBOOK_SCRIPT.read_text(encoding="utf-8") + _notebook_source()
+
+    assert "from call_asr." not in source
+    assert 'Path("/Users/temicide/Documents/5_domain_final/Call-ASR")' not in source
+    assert "WhisperPipelineBackend" in source
+    assert "Runtime > Change runtime type > A100 GPU" in source
+    assert "accelerate>=0.31.0" in source
 
 
 def test_notebook_script_does_not_print_credentials():
