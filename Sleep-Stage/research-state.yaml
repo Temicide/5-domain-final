@@ -1,0 +1,63 @@
+project:
+  title: "H100 Sleep-Stage Classification Research"
+  question: "How can the current wearable-signal sleep-stage pipeline be improved for best grouped weighted F1 and Kaggle leaderboard accuracy while using an H100 80 GB Colab Pro runtime effectively?"
+  status: active
+  started: "2026-06-06"
+  domain: "wearable sleep-stage classification"
+
+literature:
+  key_papers: []
+  open_problems:
+    - "Wearable-only sleep staging is weaker than PSG/EEG staging; temporal context and subject normalization are critical."
+    - "Current local pipeline uses hand-crafted epoch features and shallow models, leaving H100 compute unused."
+    - "Public leaderboard feedback is limited and potentially noisy; grouped recording validation remains the main selection criterion."
+  evidence_gaps:
+    - "Need local grouped CV results for raw-signal deep sequence models on the exact competition data."
+    - "Need ablation of transition decoding, temperature scaling, and context length on weighted F1 and per-class F1."
+
+hypotheses:
+  - id: H1
+    statement: "A raw-signal Conv/Transformer sequence model trained on full 30-second epochs plus neighboring epochs will beat the current context HGB baseline because it can learn morphology, cross-channel timing, and sleep-transition dynamics that summary statistics discard."
+    status: pending
+    motivation: "H100 80 GB VRAM can train large batches and mixed-precision sequence models over all 66,745 epochs, unlike the current CPU-style pipeline."
+    parent: null
+    priority: high
+  - id: H2
+    statement: "A stronger calibrated tabular ensemble using richer spectral/HRV/recording-normalized features and LightGBM/CatBoost will improve over sklearn HGB while staying robust on grouped CV."
+    status: pending
+    motivation: "The existing context feature result already improved grouped F1, and boosted trees are strong for small/medium tabular biomedical datasets."
+    parent: null
+    priority: high
+  - id: H3
+    statement: "Combining calibrated model probabilities with sleep-stage transition priors and tunable Viterbi smoothing will improve final sequence consistency without erasing rare stages."
+    status: pending
+    motivation: "Sleep labels change sparsely; the current smoothing is fixed and not validated as a hyperparameter."
+    parent: null
+    priority: medium
+
+experiments:
+  proxy_metric: "5-fold GroupKFold weighted F1 by recording, with per-class F1 and confusion matrix; secondary metric is public LB only after manual upload."
+  baseline_value: 0.51856
+  best_value: 0.51856
+  total_runs: 0
+  trajectory:
+    - run_id: "baseline_context_hgb_partial"
+      hypothesis: "baseline"
+      metric_value: 0.51856
+      delta: 0.0
+      wall_time_min: null
+      change_summary: "Existing partial 3-fold context HistGradientBoosting baseline from project spec."
+      timestamp: "2026-06-06T15:51:30+07:00"
+
+outer_loop:
+  cycle: 0
+  last_direction: "bootstrap"
+  last_reflection: "Initial direction is to move from CPU-bound hand-crafted features to H100-suitable raw-signal sequence training while retaining a strong tabular fallback and calibrated sequence decoding."
+
+workspace:
+  findings: "findings.md"
+  log: "research-log.md"
+  literature_dir: "literature/"
+  experiments_dir: "experiments/"
+  to_human_dir: "to_human/"
+  paper_dir: "paper/"
