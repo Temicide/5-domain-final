@@ -14,6 +14,15 @@ dependencies = [
   "scipy>=1.9",
 ]
 
+[project.optional-dependencies]
+h100 = [
+  "torch>=2.3",
+]
+boosting = [
+  "catboost>=1.2",
+  "lightgbm>=4.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

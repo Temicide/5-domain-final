@@ -6,7 +6,37 @@ project:
   domain: "wearable sleep-stage classification"
 
 literature:
-  key_papers: []
+  key_papers:
+    - id: "gillard2024wearablecnn"
+      title: "Sleep staging classification from wearable signals using deep learning"
+      authors: "Gillard et al."
+      year: 2024
+      relevance: "Raw PPG plus accelerometer CNN supports an end-to-end raw-signal model for the competition signals."
+    - id: "zhang2017wearablernn"
+      title: "Sleep Stage Classification Based on Multi-level Feature Learning and Recurrent Neural Networks via Wearable Device"
+      authors: "Zhang et al."
+      year: 2017
+      relevance: "Heart-rate and actigraphy BLSTM validates temporal sequence modeling for wearable sleep staging."
+    - id: "radha2021ppgtransfer"
+      title: "A deep transfer learning approach for wearable sleep stage classification with photoplethysmography"
+      authors: "Radha et al."
+      year: 2021
+      relevance: "Shows transfer/regularization value when PPG-labeled data is limited."
+    - id: "nam2024insightsleepnet"
+      title: "InsightSleepNet"
+      authors: "Nam et al."
+      year: 2024
+      relevance: "InceptionTime, TCN, attention, and uncertainty estimation are directly useful architecture ideas."
+    - id: "carter2024wav2sleep"
+      title: "wav2sleep"
+      authors: "Carter and Tarassenko"
+      year: 2024
+      relevance: "Supports modality-robust physiological signal encoders and large-scale pretraining direction."
+    - id: "brach2026mamba"
+      title: "Mamba-based deep learning approach for sleep staging on a wireless multimodal wearable system without electroencephalography"
+      authors: "Brach et al."
+      year: 2026
+      relevance: "Modern long-context sequence models work on non-EEG wearable sleep staging; ensembling helps."
   open_problems:
     - "Wearable-only sleep staging is weaker than PSG/EEG staging; temporal context and subject normalization are critical."
     - "Current local pipeline uses hand-crafted epoch features and shallow models, leaving H100 compute unused."
@@ -18,7 +48,7 @@ literature:
 hypotheses:
   - id: H1
     statement: "A raw-signal Conv/Transformer sequence model trained on full 30-second epochs plus neighboring epochs will beat the current context HGB baseline because it can learn morphology, cross-channel timing, and sleep-transition dynamics that summary statistics discard."
-    status: pending
+    status: active
     motivation: "H100 80 GB VRAM can train large batches and mixed-precision sequence models over all 66,745 epochs, unlike the current CPU-style pipeline."
     parent: null
     priority: high
@@ -50,9 +80,9 @@ experiments:
       timestamp: "2026-06-06T15:51:30+07:00"
 
 outer_loop:
-  cycle: 0
-  last_direction: "bootstrap"
-  last_reflection: "Initial direction is to move from CPU-bound hand-crafted features to H100-suitable raw-signal sequence training while retaining a strong tabular fallback and calibrated sequence decoding."
+  cycle: 1
+  last_direction: "deepen"
+  last_reflection: "Literature and existing baseline both support H1 as the primary path. The next step is to run at least one H100 grouped fold of the raw Conv/Transformer model before deciding whether to broaden into LightGBM/CatBoost or Mamba variants."
 
 workspace:
   findings: "findings.md"

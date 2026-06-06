@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>H100 Sleep-Stage Research Progress</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2933; background: #f6f8fb; }
+    main { max-width: 980px; margin: 0 auto; padding: 40px 24px 64px; }
+    h1 { margin: 0 0 8px; font-size: 34px; line-height: 1.1; letter-spacing: 0; }
+    h2 { margin-top: 32px; font-size: 20px; }
+    p, li { font-size: 16px; line-height: 1.6; }
+    .lede { font-size: 18px; color: #334155; }
+    .band { background: #ffffff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 22px; margin-top: 22px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .metric { background: #eef6ff; border: 1px solid #c8ddf2; border-radius: 8px; padding: 14px; }
+    .metric strong { display: block; font-size: 24px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre { overflow-x: auto; background: #111827; color: #e5e7eb; padding: 14px; border-radius: 8px; }
+    a { color: #0f5f9f; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>H100 Sleep-Stage Research Progress</h1>
+    <p class="lede">The notebook now has an H100-ready raw-signal Conv/Transformer path instead of relying only on hand-crafted sklearn features.</p>
+
+    <section class="grid">
+      <div class="metric"><strong>0.51856</strong> documented partial context-HGB baseline</div>
+      <div class="metric"><strong>11 epochs</strong> default centered raw-signal context</div>
+      <div class="metric"><strong>21 passed</strong> local verification tests</div>
+    </section>
+
+    <section class="band">
+      <h2>Implemented</h2>
+      <ul>
+        <li><code>src/sleep_stage/deep.py</code>: raw caches, normalization, context windows, Conv/Transformer, focal loss, AMP/bfloat16, TF32, grouped CV, final submission.</li>
+        <li><code>sleep_stage_solution.ipynb</code>: uses the deep model by default when CUDA is available; CPU keeps tabular fallback.</li>
+        <li><code>tests/test_deep.py</code>: checks window padding, normalization, model output shape, and class weights.</li>
+      </ul>
+    </section>
+
+    <section class="band">
+      <h2>H100 Run Order</h2>
+      <p>First sanity fold:</p>
+      <pre>%env RUN_H100_DEEP=1
+%env RUN_DEEP_CV=1
+%env DEEP_EPOCHS=6
+%env DEEP_BATCH_SIZE=768</pre>
+      <p>Full CV after the sanity fold is stable:</p>
+      <pre>%env RUN_H100_DEEP=1
+%env RUN_DEEP_CV=1
+%env DEEP_EPOCHS=18
+%env DEEP_BATCH_SIZE=1024</pre>
+      <p>Final submission:</p>
+      <pre>%env RUN_H100_DEEP=1
+%env RUN_DEEP_CV=0
+%env DEEP_EPOCHS=18
+%env DEEP_BATCH_SIZE=1024</pre>
+    </section>
+
+    <section class="band">
+      <h2>Next Experiments</h2>
+      <ol>
+        <li>Run one H100 fold and verify loss, predictions, and minority classes.</li>
+        <li>Run full 5-fold GroupKFold CV and compare against <code>0.51856</code>.</li>
+        <li>Tune probability calibration and transition decoding on OOF predictions.</li>
+        <li>Add LightGBM/CatBoost fallback only if the raw model overfits.</li>
+        <li>Try Mamba/SSM blocks if Conv/Transformer works but plateaus.</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>
