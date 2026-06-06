@@ -368,6 +368,16 @@ class WhisperPipelineBackend:
         LOGGER.info("Finished audio: %s chars=%d elapsed=%s", audio_path.name, len(text), _elapsed(start_time))
         return AsrResult(text=text, avg_logprob=0.0, compression_ratio=0.0, no_speech_prob=0.0)
 
+    def transcribe_many(self, audio_paths: list[Path]) -> list[AsrResult]:
+        if not audio_paths:
+            return []
+        LOGGER.info("Transcribing batch of %d audio files", len(audio_paths))
+        start_time = time.perf_counter()
+        outputs = self.pipe([str(path) for path in audio_paths], generate_kwargs=self.generate_kwargs)
+        results = [AsrResult(text=str(output.get("text", "")), avg_logprob=0.0, compression_ratio=0.0, no_speech_prob=0.0) for output in outputs]
+        LOGGER.info("Finished audio batch files=%d total_chars=%d elapsed=%s", len(audio_paths), sum(len(result.text) for result in results), _elapsed(start_time))
+        return results
+
 
 def _load_existing(output_csv: Path) -> pd.DataFrame:
     if output_csv.is_file():
@@ -394,9 +404,10 @@ def run_inference(
     backend: WhisperPipelineBackend,
     normalization_policy: str,
     resume: bool,
+    file_batch_size: int,
 ) -> pd.DataFrame:
     LOGGER.info("Starting inference")
-    LOGGER.info("audio_dir=%s output_csv=%s log_jsonl=%s normalization_policy=%s resume=%s", audio_dir, output_csv, log_jsonl, normalization_policy, resume)
+    LOGGER.info("audio_dir=%s output_csv=%s log_jsonl=%s normalization_policy=%s resume=%s file_batch_size=%s", audio_dir, output_csv, log_jsonl, normalization_policy, resume, file_batch_size)
     start_time = time.perf_counter()
     existing = _load_existing(output_csv) if resume else pd.DataFrame(columns=PREDICTION_COLUMNS)
     completed = set(existing["file_name"].tolist()) if not existing.empty else set()
@@ -404,51 +415,70 @@ def run_inference(
     total = len(sample_df)
     LOGGER.info("Inference queue total=%d completed_from_resume=%d remaining=%d", total, len(completed), total - len(completed))
 
-    for position, file_name in enumerate(sample_df["file_name"].tolist(), start=1):
-        if file_name in completed:
-            LOGGER.info("Skipping completed file %d/%d: %s", position, total, file_name)
-            continue
-        audio_path = audio_dir / file_name
-        LOGGER.info("Processing file %d/%d: %s", position, total, file_name)
-        file_start_time = time.perf_counter()
+    pending = [
+        (position, file_name, audio_dir / file_name)
+        for position, file_name in enumerate(sample_df["file_name"].tolist(), start=1)
+        if file_name not in completed
+    ]
+    if completed:
+        LOGGER.info("Skipping %d completed files from resume", len(completed))
+
+    for batch_start in range(0, len(pending), file_batch_size):
+        batch = pending[batch_start : batch_start + file_batch_size]
+        LOGGER.info("Processing file batch %d-%d of %d", batch_start + 1, batch_start + len(batch), len(pending))
+        batch_start_time = time.perf_counter()
         try:
-            result = backend.transcribe(audio_path)
-            raw_text = result.text
-            normalized_text = normalize_text(raw_text, normalization_policy)
-            row = {
-                "event": "prediction",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "file_name": file_name,
-                "raw_text": raw_text,
-                "normalized_text": normalized_text,
-                "model_name": backend.model_name,
-                "avg_logprob": result.avg_logprob,
-                "compression_ratio": result.compression_ratio,
-                "no_speech_prob": result.no_speech_prob,
-                "error": "",
-                "elapsed_seconds": round(time.perf_counter() - file_start_time, 3),
-            }
-            LOGGER.info("Prediction complete %s raw_chars=%d normalized_chars=%d elapsed=%s", file_name, len(raw_text), len(normalized_text), _elapsed(file_start_time))
-        except Exception as exc:
-            LOGGER.exception("Inference failed for %s", file_name)
-            row = {
-                "event": "prediction_error",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "file_name": file_name,
-                "raw_text": "",
-                "normalized_text": "",
-                "model_name": backend.model_name,
-                "avg_logprob": 0.0,
-                "compression_ratio": 0.0,
-                "no_speech_prob": 0.0,
-                "error": f"{type(exc).__name__}: {exc}",
-                "traceback": traceback.format_exc(),
-                "elapsed_seconds": round(time.perf_counter() - file_start_time, 3),
-            }
-        _write_log(log_jsonl, row)
-        rows.append({column: row.get(column, "") for column in PREDICTION_COLUMNS})
+            batch_results = backend.transcribe_many([audio_path for _, _, audio_path in batch])
+            if len(batch_results) != len(batch):
+                raise RuntimeError(f"Expected {len(batch)} batched ASR outputs, got {len(batch_results)}")
+        except Exception:
+            LOGGER.exception("Batched inference failed; falling back to one-by-one for this batch")
+            batch_results = []
+            for _, file_name, audio_path in batch:
+                try:
+                    batch_results.append(backend.transcribe(audio_path))
+                except Exception as exc:
+                    LOGGER.exception("Inference failed for %s", file_name)
+                    batch_results.append(exc)
+
+        for (position, file_name, _), result in zip(batch, batch_results):
+            file_start_time = time.perf_counter()
+            if isinstance(result, Exception):
+                row = {
+                    "event": "prediction_error",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "file_name": file_name,
+                    "raw_text": "",
+                    "normalized_text": "",
+                    "model_name": backend.model_name,
+                    "avg_logprob": 0.0,
+                    "compression_ratio": 0.0,
+                    "no_speech_prob": 0.0,
+                    "error": f"{type(result).__name__}: {result}",
+                    "traceback": "".join(traceback.format_exception(type(result), result, result.__traceback__)),
+                    "elapsed_seconds": round(time.perf_counter() - file_start_time, 3),
+                }
+            else:
+                raw_text = result.text
+                normalized_text = normalize_text(raw_text, normalization_policy)
+                row = {
+                    "event": "prediction",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "file_name": file_name,
+                    "raw_text": raw_text,
+                    "normalized_text": normalized_text,
+                    "model_name": backend.model_name,
+                    "avg_logprob": result.avg_logprob,
+                    "compression_ratio": result.compression_ratio,
+                    "no_speech_prob": result.no_speech_prob,
+                    "error": "",
+                    "elapsed_seconds": round(time.perf_counter() - file_start_time, 3),
+                }
+                LOGGER.info("Prediction complete %d/%d %s raw_chars=%d normalized_chars=%d", position, total, file_name, len(raw_text), len(normalized_text))
+            _write_log(log_jsonl, row)
+            rows.append({column: row.get(column, "") for column in PREDICTION_COLUMNS})
         pd.DataFrame(rows, columns=PREDICTION_COLUMNS).to_csv(output_csv, index=False)
-        LOGGER.info("Checkpointed predictions after %d/%d files to %s", len(rows), total, output_csv)
+        LOGGER.info("Checkpointed predictions after %d/%d files to %s batch_elapsed=%s", len(rows), total, output_csv, _elapsed(batch_start_time))
 
     output = pd.DataFrame(rows, columns=PREDICTION_COLUMNS)
     order = {file_name: position for position, file_name in enumerate(sample_df["file_name"].tolist())}
@@ -473,13 +503,15 @@ def require_cuda_runtime() -> None:
 MODEL_NAME = "typhoon-ai/typhoon-whisper-large-v3"
 NORMALIZATION_POLICY = "single_space"
 CHUNK_LENGTH_SECONDS = 30
-BATCH_SIZE = 4
+BATCH_SIZE = 32
+FILE_BATCH_SIZE = 16
 CONDITION_ON_PREVIOUS_TEXT = False
 LOGGER.info("Notebook configuration set")
 LOGGER.info("MODEL_NAME=%s", MODEL_NAME)
 LOGGER.info("NORMALIZATION_POLICY=%s", NORMALIZATION_POLICY)
 LOGGER.info("CHUNK_LENGTH_SECONDS=%s", CHUNK_LENGTH_SECONDS)
 LOGGER.info("BATCH_SIZE=%s", BATCH_SIZE)
+LOGGER.info("FILE_BATCH_SIZE=%s", FILE_BATCH_SIZE)
 LOGGER.info("CONDITION_ON_PREVIOUS_TEXT=%s", CONDITION_ON_PREVIOUS_TEXT)
 
 # %%
@@ -520,6 +552,7 @@ predictions_df = run_inference(
     backend=backend,
     normalization_policy=NORMALIZATION_POLICY,
     resume=True,
+    file_batch_size=FILE_BATCH_SIZE,
 )
 LOGGER.info("Wrote predictions: %s", predictions_path)
 LOGGER.info("Wrote logs: %s", log_path)

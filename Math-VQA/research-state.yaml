@@ -1,0 +1,100 @@
+project:
+  title: "Thai Math VQA H100 VLM Upgrade"
+  question: "Which open-weight vision-language pipeline should replace the current Ollama/LLaVA notebook for best Thai math VQA accuracy on a single Colab Pro H100 80GB runtime?"
+  status: active
+  started: "2026-06-06"
+  domain: "multimodal mathematical reasoning"
+
+literature:
+  key_papers:
+    - id: qwen3vl2025
+      title: "Qwen3-VL Technical Report"
+      authors: "Qwen Team"
+      year: 2025
+      relevance: "Current open-weight Qwen VL family with strong visual-math and long-context multimodal reasoning; includes dense 8B/32B variants relevant to one H100."
+      url: "https://arxiv.org/abs/2511.21631"
+    - id: qwen25vl2025
+      title: "Qwen2.5-VL Technical Report"
+      authors: "Qwen Team"
+      year: 2025
+      relevance: "Proven dynamic-resolution VLM with strong document, diagram, OCR, MathVista, and MathVision results; useful fallback when Qwen3-VL availability is unstable."
+      url: "https://arxiv.org/abs/2502.13923"
+    - id: paddleocrvl2025
+      title: "PaddleOCR-VL: Boosting Multilingual Document Parsing via a 0.9B Ultra-Compact Vision-Language Model"
+      authors: "PaddlePaddle Team"
+      year: 2025
+      relevance: "Auxiliary OCR channel for Thai, formulas, charts, and document-like math images."
+      url: "https://huggingface.co/PaddlePaddle/PaddleOCR-VL"
+    - id: qlora2023
+      title: "QLoRA: Efficient Finetuning of Quantized LLMs"
+      authors: "Dettmers et al."
+      year: 2023
+      relevance: "Memory-efficient adapter training rationale for single-H100 LoRA/QLoRA experiments."
+      url: "https://arxiv.org/abs/2305.14314"
+  open_problems:
+    - "The current notebook has no locked local validation loop before test inference, so model changes cannot be compared safely."
+    - "Only 280 labeled samples are available; fine-tuning can overfit easily, so the first optimization target should be robust validation rather than public-LB guessing."
+    - "Most images are very wide and contain small text; the model must preserve high horizontal resolution and avoid fixed square resizing."
+  evidence_gaps:
+    - "No train-split score exists yet for Ollama/LLaVA, Qwen3-VL-32B, Qwen3-VL-8B-LoRA, or OCR-augmented variants."
+    - "No per-bucket or image-type error analysis has been run yet because the source bucket labels are not explicit in the CSV."
+
+hypotheses:
+  - id: H1
+    statement: "Qwen3-VL-32B-Instruct with high visual-token budget, flash attention, and answer-only prompting will beat the current Ollama/LLaVA pipeline on train holdout normalized accuracy."
+    status: active
+    motivation: "The baseline LLaVA log has many unreadable/refusal/explanation outputs; Qwen3-VL is a current stronger open VLM family for visual math."
+    parent: null
+    priority: high
+  - id: H2
+    statement: "Adding PaddleOCR-VL text/formula extraction to the prompt will reduce unreadable-image failures on Thai and formula-heavy wide images."
+    status: pending
+    motivation: "The old raw log contains at least 75 rows now classified as fallback/refusal-like after cleaner replay."
+    parent: null
+    priority: high
+  - id: H3
+    statement: "QLoRA/LoRA on Qwen3-VL-8B for one to three epochs will improve answer formatting and Thai competition style without destroying general visual reasoning."
+    status: pending
+    motivation: "A single H100 can train 8B adapters comfortably; 280 labels are too few for aggressive 32B/72B fine-tuning without cross-validation."
+    parent: null
+    priority: medium
+  - id: H4
+    statement: "Test-time self-consistency over raw/upscaled/high-token/cropped image variants will improve diagram-heavy and very wide examples through answer voting."
+    status: pending
+    motivation: "Train/test images are mostly wide; 194/280 train and 291/420 test images have width/height greater than 4."
+    parent: null
+    priority: medium
+
+experiments:
+  proxy_metric: "5-fold or fixed-seed train holdout normalized_accuracy using math_vqa.evaluation.normalize_answer; secondary metrics: fallback_count, long_answer_count, median runtime_seconds, GPU memory peak."
+  baseline_value: null
+  best_value: null
+  total_runs: 2
+  trajectory:
+    - run_id: run_001
+      hypothesis: "baseline-cleaner"
+      metric_value: null
+      delta: null
+      wall_time_min: 1
+      change_summary: "Replayed existing LLaVA raw_predictions-1.csv with stricter cleaner: old fallback_count=15, replay fallback_count=75, changed_answers=85."
+      timestamp: "2026-06-06"
+    - run_id: run_002
+      hypothesis: "H1"
+      metric_value: null
+      delta: null
+      wall_time_min: 1
+      change_summary: "Created generated H100/Qwen-VL Colab notebook with fixed holdout validation, Qwen3-VL-32B default, 4-bit/flash-attention switches, and unchanged submission output contract."
+      timestamp: "2026-06-06"
+
+outer_loop:
+  cycle: 0
+  last_direction: "bootstrap"
+  last_reflection: "Prioritize Qwen3-VL-32B inference and OCR-augmented prompting before fine-tuning; add local validation first."
+
+workspace:
+  findings: "findings.md"
+  log: "research-log.md"
+  literature_dir: "literature/"
+  experiments_dir: "experiments/"
+  to_human_dir: "to_human/"
+  paper_dir: "paper/"
