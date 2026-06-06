@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "asr": {
+      "source": "marswaveai/skills",
+      "sourceType": "github",
+      "skillPath": "asr/SKILL.md",
+      "computedHash": "4f9d21319d4a8faf46f7a47f61135b0af28c1b26aac15212f1ca87a3f7e96164"
+    },
+    "kaggle": {
+      "source": "shepsci/kaggle-skill",
+      "sourceType": "github",
+      "skillPath": "skills/kaggle/SKILL.md",
+      "computedHash": "ef1b44156622f07ed70e4e1e1448772cce2b5cff1563b0783b1ca8ecfecf3cab"
+    }
+  }
+}
