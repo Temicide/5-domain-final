@@ -39,6 +39,7 @@ Fine-tuning is second priority. With only 280 labels, LoRA can overfit. If neede
 Two code changes are already made:
 
 - `notebooks/thai_math_vqa_h100_qwen_vl.ipynb` was added as a generated H100/Qwen notebook.
+- The H100/Qwen notebook now has an optional OCR augmentation switch: set `USE_PADDLEOCR_VL=1` to add PaddleOCR-VL OCR/formula context.
 - The existing Ollama/LLaVA notebook was regenerated with stricter postprocessing.
 - rejects common unreadable/refusal strings like "too small", "blurry", "please provide"
 - extracts declared final answers from verbose responses
@@ -47,4 +48,4 @@ Two code changes are already made:
 
 ## Next Experiment
 
-Run `notebooks/thai_math_vqa_h100_qwen_vl.ipynb` on Colab H100 and record the holdout score in `experiments/h1-qwen3vl32b-ocr-augmented/results/`. The locked H1 protocol is in `experiments/h1-qwen3vl32b-ocr-augmented/protocol.md`.
+Run `notebooks/thai_math_vqa_h100_qwen_vl.ipynb` on Colab H100 twice: first with `USE_PADDLEOCR_VL=0` for the image-only Qwen baseline, then with `USE_PADDLEOCR_VL=1` for OCR/formula augmentation. Record both holdout scores in `experiments/h1-qwen3vl32b-ocr-augmented/results/`. The locked H1 protocol is in `experiments/h1-qwen3vl32b-ocr-augmented/protocol.md`.

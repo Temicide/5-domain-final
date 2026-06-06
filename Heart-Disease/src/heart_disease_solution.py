@@ -294,14 +294,30 @@ def build_features(frame: pd.DataFrame) -> pd.DataFrame:
         (1 - _yes_no_indicator(features["Health Care Coverage"]))
         + _yes_no_indicator(features["Doctor Visit Cost Barrier"])
     )
-    education_map = {"never attended": 1, "elementary": 2, "some high school": 3, "high school": 4, "college": 5, "graduate": 6}
-    income_map = {"less than $10,000": 1, "$10,000 to $15,000": 2, "$15,000 to $20,000": 3, "$20,000 to $25,000": 4, "$25,000 to $35,000": 5, "$35,000 to $50,000": 6, "$50,000 to $75,000": 7, "$75,000 or more": 8}
+    education_map = {
+        "never attended school": 1,
+        "elementary": 2,
+        "some high school": 3,
+        "high school graduate": 4,
+        "some college or technical school": 5,
+        "college graduate": 6,
+    }
+    income_map = {
+        "less than $10,000": 1,
+        "($10,000 to less than $15,000": 2,
+        "$15,000 to less than $20,000": 3,
+        "$20,000 to less than $25,000": 4,
+        "$25,000 to less than $35,000": 5,
+        "$35,000 to less than $50,000": 6,
+        "$50,000 to less than $75,000": 7,
+        "$75,000 or more": 8,
+    }
     features["education_rank"] = _rank_text(features["Education Level"], education_map)
     features["income_rank"] = _rank_text(features["Income Level"], income_map)
     features["age_x_high_bp"] = features["Age"].fillna(features["Age"].median()) * _yes_no_indicator(features["High Blood Pressure"])
     general_health_rank = _rank_text(
         features["General Health"],
-        {"excellent": 1, "very good": 2, "good": 3, "fair": 4, "poor": 5},
+        {"excellent": 1, "very good": 2, "good": 3, "fair": 4, "poor": 5, "very poor": 6},
     )
     features["general_health_x_walking"] = general_health_rank * _yes_no_indicator(features["Difficulty Walking"])
     return features

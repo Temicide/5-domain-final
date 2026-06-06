@@ -47,12 +47,12 @@
 
   <section class="box">
     <h2>Immediate Fix Completed</h2>
-    <p>A generated H100/Qwen notebook now exists at <code>notebooks/thai_math_vqa_h100_qwen_vl.ipynb</code>. The existing Ollama/LLaVA notebook was also regenerated with stricter answer postprocessing. The pipeline now rejects common blurry/unreadable refusal text, extracts declared final answers from verbose outputs, and preserves the submission contract. All 38 Math-VQA tests pass.</p>
+    <p>A generated H100/Qwen notebook now exists at <code>notebooks/thai_math_vqa_h100_qwen_vl.ipynb</code>. It also supports optional PaddleOCR-VL OCR/formula prompt augmentation via <code>USE_PADDLEOCR_VL=1</code>. The existing Ollama/LLaVA notebook was regenerated with stricter answer postprocessing. The pipeline rejects common blurry/unreadable refusal text, extracts declared final answers from verbose outputs, and preserves the submission contract. All 38 Math-VQA tests pass.</p>
   </section>
 
   <section class="box">
     <h2>Next Experiment</h2>
-    <p>Run <code>notebooks/thai_math_vqa_h100_qwen_vl.ipynb</code> on Colab H100, then record results under <code>experiments/h1-qwen3vl32b-ocr-augmented/results/</code>. The locked protocol is <code>experiments/h1-qwen3vl32b-ocr-augmented/protocol.md</code>.</p>
+    <p>Run <code>notebooks/thai_math_vqa_h100_qwen_vl.ipynb</code> on Colab H100 twice: image-only Qwen with <code>USE_PADDLEOCR_VL=0</code>, then OCR/formula-augmented Qwen with <code>USE_PADDLEOCR_VL=1</code>. Record results under <code>experiments/h1-qwen3vl32b-ocr-augmented/results/</code>. The locked protocol is <code>experiments/h1-qwen3vl32b-ocr-augmented/protocol.md</code>.</p>
   </section>
 
   <section>

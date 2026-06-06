@@ -67,7 +67,8 @@ def build_notebook() -> None:
                 "`/content/math-vqa-output/submission.csv` and `/content/math-vqa-output/raw_predictions.csv`.\n\n"
                 "Recommended H100 start: `VLM_MODEL_ID=Qwen/Qwen3-VL-32B-Instruct`, BF16, bounded visual "
                 "tokens, deterministic generation. If BF16 does not fit, set `LOAD_IN_4BIT=1` or use "
-                "`Qwen/Qwen2.5-VL-32B-Instruct` as a fallback."
+                "`Qwen/Qwen2.5-VL-32B-Instruct` as a fallback. To test H2 OCR augmentation, set "
+                "`USE_PADDLEOCR_VL=1`; leave it disabled for the first image-only baseline."
             ),
             code_cell(
                 """
@@ -97,6 +98,13 @@ def build_notebook() -> None:
                 HOLDOUT_ROWS = int(os.getenv("HOLDOUT_ROWS", "56"))
                 RUN_HOLDOUT_VALIDATION = os.getenv("RUN_HOLDOUT_VALIDATION", "1") == "1"
                 RUN_TEST_INFERENCE = os.getenv("RUN_TEST_INFERENCE", "1") == "1"
+                USE_PADDLEOCR_VL = os.getenv("USE_PADDLEOCR_VL", "0") == "1"
+                PADDLEOCR_MODEL_ID = os.getenv("PADDLEOCR_MODEL_ID", "PaddlePaddle/PaddleOCR-VL")
+                PADDLEOCR_TASKS = [
+                    task.strip()
+                    for task in os.getenv("PADDLEOCR_TASKS", "ocr,formula").split(",")
+                    if task.strip()
+                ]
 
                 print(f"IS_COLAB={IS_COLAB}")
                 print(f"DATA_ROOT={DATA_ROOT}")
@@ -108,6 +116,8 @@ def build_notebook() -> None:
                 print(f"MAX_NEW_TOKENS={MAX_NEW_TOKENS}")
                 print(f"RUN_HOLDOUT_VALIDATION={RUN_HOLDOUT_VALIDATION}")
                 print(f"RUN_TEST_INFERENCE={RUN_TEST_INFERENCE}")
+                print(f"USE_PADDLEOCR_VL={USE_PADDLEOCR_VL}")
+                print(f"PADDLEOCR_TASKS={PADDLEOCR_TASKS}")
 
                 def run_command(command, *, shell=False, timeout=None):
                     return subprocess.run(
@@ -254,7 +264,7 @@ def build_notebook() -> None:
                 """
                 import importlib.util
                 import torch
-                from transformers import AutoModelForImageTextToText, AutoProcessor
+                from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, AutoProcessor
 
                 if not torch.cuda.is_available():
                     raise RuntimeError("A GPU runtime is required. In Colab, select an H100/A100/L4/T4 GPU runtime before running this notebook.")
@@ -299,6 +309,20 @@ def build_notebook() -> None:
                 print(model.__class__.__name__)
                 print(f"attn_implementation={attn_implementation or 'default/sdpa'}")
                 print(f"cuda_device={torch.cuda.get_device_name(0)}")
+
+                ocr_model = None
+                ocr_processor = None
+                if USE_PADDLEOCR_VL:
+                    print("Loading PaddleOCR-VL for OCR/formula context...")
+                    ocr_kwargs = {
+                        "trust_remote_code": True,
+                        "torch_dtype": torch.bfloat16,
+                    }
+                    if attn_implementation:
+                        ocr_kwargs["attn_implementation"] = attn_implementation
+                    ocr_processor = AutoProcessor.from_pretrained(PADDLEOCR_MODEL_ID, trust_remote_code=True)
+                    ocr_model = AutoModelForCausalLM.from_pretrained(PADDLEOCR_MODEL_ID, **ocr_kwargs).to("cuda").eval()
+                    print(f"Loaded {PADDLEOCR_MODEL_ID}")
                 """
             ),
             code_cell(
@@ -318,13 +342,71 @@ def build_notebook() -> None:
                 from math_vqa.submission import PredictionRecord, write_outputs
 
                 PREPARED_IMAGE_DIR = OUTPUT_DIR / "prepared_images_qwen"
+                OCR_CACHE_DIR = OUTPUT_DIR / "paddleocr_context"
+                PADDLEOCR_PROMPTS = {
+                    "ocr": "OCR:",
+                    "formula": "Formula Recognition:",
+                    "table": "Table Recognition:",
+                    "chart": "Chart Recognition:",
+                }
 
-                def build_h100_prompt(prompt_name: str) -> str:
-                    return (
+                def build_h100_prompt(prompt_name: str, ocr_context: str = "") -> str:
+                    prompt = (
                         build_prompt(prompt_name)
                         + "\\nIf the image is low resolution, infer the most likely answer anyway. "
                         + "Never ask for a clearer image."
                     )
+                    if ocr_context.strip():
+                        prompt += (
+                            "\\n\\nAuxiliary OCR/formula context, which may contain errors. "
+                            "Use it only when it agrees with the image:\\n"
+                            + ocr_context.strip()
+                        )
+                    return prompt
+
+                def extract_paddleocr_context(image_path: str | Path, image_id: object) -> str:
+                    if not USE_PADDLEOCR_VL or ocr_model is None or ocr_processor is None:
+                        return ""
+                    OCR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    cache_path = OCR_CACHE_DIR / f"{image_id}_ocr_context.txt"
+                    if cache_path.exists():
+                        return cache_path.read_text(encoding="utf-8")
+
+                    outputs = []
+                    image = Image.open(image_path).convert("RGB")
+                    for task in PADDLEOCR_TASKS:
+                        prompt = PADDLEOCR_PROMPTS.get(task)
+                        if prompt is None:
+                            continue
+                        messages = [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "image", "image": image},
+                                    {"type": "text", "text": prompt},
+                                ],
+                            }
+                        ]
+                        inputs = ocr_processor.apply_chat_template(
+                            messages,
+                            tokenize=True,
+                            add_generation_prompt=True,
+                            return_dict=True,
+                            return_tensors="pt",
+                        ).to("cuda")
+                        with torch.inference_mode():
+                            generated = ocr_model.generate(
+                                **inputs,
+                                do_sample=False,
+                                max_new_tokens=384,
+                                use_cache=True,
+                            )
+                        decoded = ocr_processor.batch_decode(generated, skip_special_tokens=True)[0].strip()
+                        if decoded:
+                            outputs.append(f"[{task}] {decoded}")
+                    context = "\\n".join(outputs).strip()
+                    cache_path.write_text(context, encoding="utf-8")
+                    return context
 
                 def query_qwen_vl(image_path: str | Path, prompt: str) -> str:
                     messages = [
@@ -371,7 +453,8 @@ def build_notebook() -> None:
                     prepared_path = save_preprocessed_image(preprocess_result, PREPARED_IMAGE_DIR, image_id)
                     inference_error = ""
                     try:
-                        raw_prediction = query_qwen_vl(prepared_path, build_h100_prompt(prompt_name))
+                        ocr_context = extract_paddleocr_context(prepared_path, image_id)
+                        raw_prediction = query_qwen_vl(prepared_path, build_h100_prompt(prompt_name, ocr_context))
                         cleaned = clean_model_answer(raw_prediction, fallback_answer)
                     except Exception as exc:
                         inference_error = f"{type(exc).__name__}: {exc}"
@@ -383,7 +466,7 @@ def build_notebook() -> None:
                         image_path=str(image_path_value),
                         raw_prediction=raw_prediction,
                         clean_answer=cleaned.answer,
-                        prompt_name=prompt_name,
+                        prompt_name=f"{prompt_name}+paddleocr" if USE_PADDLEOCR_VL else prompt_name,
                         preprocess_name=preprocess_name,
                         final_size=f"{preprocess_result.final_size[0]}x{preprocess_result.final_size[1]}",
                         runtime_seconds=runtime_seconds,
@@ -446,13 +529,14 @@ def build_notebook() -> None:
                             "model": VLM_MODEL_ID,
                             "setup": "Transformers AutoModelForImageTextToText",
                             "preprocessing": "image-id selector: raw/upscale/contrast/high_res",
-                            "prompt": "Qwen-VL answer-only prompt + no clearer-image request",
+                            "prompt": "Qwen-VL answer-only prompt + optional PaddleOCR-VL OCR/formula context",
                             "postprocessing": "strict short-answer cleanup, refusal fallback, declared-final-answer extraction",
                             "local_score": locals().get("holdout_score", ""),
                             "public_lb": "",
                             "notes": (
                                 f"load_in_4bit={LOAD_IN_4BIT}; min_pixels={MIN_PIXELS}; max_pixels={MAX_PIXELS}; "
-                                f"max_new_tokens={MAX_NEW_TOKENS}; output_dir={OUTPUT_DIR}"
+                                f"max_new_tokens={MAX_NEW_TOKENS}; use_paddleocr_vl={USE_PADDLEOCR_VL}; "
+                                f"paddleocr_tasks={PADDLEOCR_TASKS}; output_dir={OUTPUT_DIR}"
                             ),
                         }
                     ]

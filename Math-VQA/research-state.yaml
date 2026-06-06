@@ -48,7 +48,7 @@ hypotheses:
     priority: high
   - id: H2
     statement: "Adding PaddleOCR-VL text/formula extraction to the prompt will reduce unreadable-image failures on Thai and formula-heavy wide images."
-    status: pending
+    status: active
     motivation: "The old raw log contains at least 75 rows now classified as fallback/refusal-like after cleaner replay."
     parent: null
     priority: high
@@ -69,7 +69,7 @@ experiments:
   proxy_metric: "5-fold or fixed-seed train holdout normalized_accuracy using math_vqa.evaluation.normalize_answer; secondary metrics: fallback_count, long_answer_count, median runtime_seconds, GPU memory peak."
   baseline_value: null
   best_value: null
-  total_runs: 2
+  total_runs: 3
   trajectory:
     - run_id: run_001
       hypothesis: "baseline-cleaner"
@@ -85,11 +85,18 @@ experiments:
       wall_time_min: 1
       change_summary: "Created generated H100/Qwen-VL Colab notebook with fixed holdout validation, Qwen3-VL-32B default, 4-bit/flash-attention switches, and unchanged submission output contract."
       timestamp: "2026-06-06"
+    - run_id: run_003
+      hypothesis: "H2"
+      metric_value: null
+      delta: null
+      wall_time_min: 1
+      change_summary: "Added optional PaddleOCR-VL OCR/formula context to the generated H100/Qwen notebook behind USE_PADDLEOCR_VL=1 with OCR caching and prompt labeling."
+      timestamp: "2026-06-06"
 
 outer_loop:
   cycle: 0
   last_direction: "bootstrap"
-  last_reflection: "Prioritize Qwen3-VL-32B inference and OCR-augmented prompting before fine-tuning; add local validation first."
+  last_reflection: "H100 notebook now supports both image-only Qwen baseline and optional PaddleOCR-VL OCR/formula augmentation; next step is empirical Colab H100 holdout scoring."
 
 workspace:
   findings: "findings.md"

@@ -18,6 +18,7 @@ PaddleOCR-VL is worth adding as an auxiliary channel, not as the only solver. It
 - New cleaner replay: fallback detection rises from 15 to 75 rows and 85 cleaned answers change. Examples recovered include verbose outputs with final answers `-2` and `2.1886`.
 - Data shape: 194/280 train images and 291/420 test images have width/height greater than 4, so fixed square resizing is a bad default.
 - Runnable H100 notebook: `notebooks/thai_math_vqa_h100_qwen_vl.ipynb` now builds from `scripts/build_h100_qwen_notebook.py` and defaults to `Qwen/Qwen3-VL-32B-Instruct`.
+- H2 is now runnable: set `USE_PADDLEOCR_VL=1` to load `PaddlePaddle/PaddleOCR-VL`, extract OCR/formula context, cache it under the output directory, and append it to the Qwen prompt.
 - Tests: all 38 Math-VQA tests pass after postprocess hardening and H100 notebook generation.
 
 ## Patterns and Insights
@@ -48,3 +49,4 @@ The H100 should be used to increase model quality and visual-token budget, not j
 |---|---|---|
 | run_001 | Replayed old LLaVA outputs through stricter cleaner | fallback_count 15 -> 75; changed_answers=85; normalized_accuracy not measurable on test labels |
 | run_002 | Added generated H100/Qwen-VL notebook | notebook contract test passes; validation metric pending Colab H100 run |
+| run_003 | Added optional PaddleOCR-VL OCR/formula prompt augmentation | notebook contract test passes; validation metric pending Colab H100 run |

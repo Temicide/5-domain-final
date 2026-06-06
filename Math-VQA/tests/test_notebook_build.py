@@ -74,6 +74,12 @@ def test_build_h100_qwen_notebook_creates_qwen_validation_sections() -> None:
     assert "process_vision_info" in source
     assert "LOAD_IN_4BIT" in source
     assert "ENABLE_FLASH_ATTN" in source
+    assert "USE_PADDLEOCR_VL" in source
+    assert "PaddlePaddle/PaddleOCR-VL" in source
+    assert "PADDLEOCR_TASKS" in source
+    assert "extract_paddleocr_context" in source
+    assert "OCR_CACHE_DIR" in source
+    assert "+paddleocr" in source
     assert "RUN_HOLDOUT_VALIDATION" in source
     assert "Holdout normalized accuracy" in source
     assert "/content/math-vqa-output/submission.csv" in source
