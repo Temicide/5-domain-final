@@ -25,6 +25,8 @@ The deliverable must be a Google Colab-ready solution. The notebook must:
 - Download the competition data in Colab with the Kaggle CLI or Kaggle API
   before any file reads, then extract the downloaded archive under
   `/content/input/individual-test-thai-call-center-asr/`.
+- Create `/content/input/` and `/content/working/` as needed before download,
+  extraction, inference, or artifact writing.
 - Read competition files from `/content/input/...` in Colab, with local path
   fallbacks under this project only for development.
 - Generate `/content/submission.csv` using the sample submission row order and

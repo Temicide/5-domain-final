@@ -222,7 +222,7 @@ Expected output contains:
  chore: scaffold call asr package
 ```
 
-### Task 2: Kaggle and Local Path Resolution
+### Task 2: Colab and Local Path Resolution
 
 **Files:**
 - Create: `/Users/temicide/Documents/5_domain_final/Call-ASR/src/call_asr/paths.py`
@@ -376,7 +376,7 @@ Expected output contains:
 
 ```text
 tests/test_paths.py::test_resolve_local_paths_with_fixture_layout PASSED
-tests/test_paths.py::test_resolve_kaggle_paths_before_local_paths PASSED
+tests/test_paths.py::test_resolve_colab_paths_before_local_paths PASSED
 ```
 
 - [ ] **Step 5: Commit**
@@ -585,14 +585,14 @@ Run:
 ```bash
 cd /Users/temicide/Documents/5_domain_final/Call-ASR
 git add src/call_asr/submission.py tests/test_submission.py
-git commit -m "feat: validate kaggle submission contract"
+git commit -m "feat: validate competition submission contract"
 ```
 
 Expected output contains:
 
 ```text
 [codex/
- feat: validate kaggle submission contract
+ feat: validate competition submission contract
 ```
 
 ### Task 4: Audio Metadata and Loading
@@ -2154,11 +2154,13 @@ def test_notebook_script_writes_required_submission_path():
 def test_notebook_script_downloads_and_extracts_before_reading():
     source = NOTEBOOK_SCRIPT.read_text(encoding="utf-8")
 
+    assert "ensure_kaggle_package" in source
     assert "configure_kaggle_credentials" in source
     assert "download_and_extract_competition_data" in source
-    assert "kaggle competitions download" in source or "competition_download_files" in source
+    assert '"competitions"' in source
+    assert '"download"' in source
     assert ".extractall" in source
-    assert source.index("download_and_extract_competition_data(") < source.index("resolve_competition_paths(")
+    assert source.index("download_and_extract_competition_data()") < source.index("resolve_competition_paths(")
 
 
 def test_notebook_script_does_not_print_credentials():
@@ -2228,6 +2230,16 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 
+def ensure_kaggle_package() -> None:
+    try:
+        import kaggle  # noqa: F401
+    except ImportError:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", "kaggle"],
+            check=True,
+        )
+
+
 def configure_kaggle_credentials() -> None:
     kaggle_dir = Path.home() / ".kaggle"
     kaggle_dir.mkdir(parents=True, exist_ok=True)
@@ -2260,6 +2272,7 @@ def configure_kaggle_credentials() -> None:
 
 
 def download_and_extract_competition_data() -> Path:
+    ensure_kaggle_package()
     configure_kaggle_credentials()
     WORKING_DIR.mkdir(parents=True, exist_ok=True)
     INPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -2373,7 +2386,7 @@ tests/test_colab_notebook_contract.py::test_notebook_script_does_not_print_crede
 tests/test_colab_notebook_contract.py::test_notebook_script_does_not_submit_to_kaggle PASSED
 ```
 
-- [ ] **Step 5: Run a static all-tests check before using Kaggle**
+- [ ] **Step 5: Run a static all-tests check before running in Colab**
 
 Run:
 
@@ -2441,7 +2454,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_readme_documents_manual_submission_boundary_and_commands():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "/kaggle/working/submission.csv" in text
+    assert "/content/submission.csv" in text
+    assert "/content/input/individual-test-thai-call-center-asr" in text
+    assert "kaggle.json" in text
+    assert "KAGGLE_USERNAME" in text
+    assert "KAGGLE_KEY" in text
     assert "python3 -m call_asr.audit_audio" in text
     assert "python3 -m call_asr.infer" in text
     assert "python3 -m pytest -v" in text
@@ -2470,7 +2487,7 @@ Create `/Users/temicide/Documents/5_domain_final/Call-ASR/README.md`:
 ```markdown
 # Thai Call Center ASR
 
-This project generates a Kaggle-ready Thai call-center ASR submission CSV for `individual-test-thai-call-center-asr`.
+This project generates a Google Colab-ready Thai call-center ASR submission CSV for the Kaggle competition `individual-test-thai-call-center-asr`.
 
 ## Local Setup
 
@@ -2516,15 +2533,22 @@ Expected local artifacts:
 /Users/temicide/Documents/5_domain_final/Call-ASR/data/runs/run_typhoon-ai__typhoon-whisper-large-v3_single_space.jsonl
 ```
 
-## Kaggle Notebook
+## Colab Notebook
 
-Upload or paste `/Users/temicide/Documents/5_domain_final/Call-ASR/notebooks/kaggle_submission.py` into a Kaggle Notebook with GPU enabled. The notebook reads competition files from `/kaggle/input/individual-test-thai-call-center-asr`, validates the sample submission schema and audio coverage, runs resumable inference, and writes:
+Upload or paste `/Users/temicide/Documents/5_domain_final/Call-ASR/notebooks/colab_submission.py` into Google Colab with GPU enabled. Provide Kaggle credentials with one of these methods before running the notebook:
+
+- Upload `kaggle.json` to `/content/kaggle.json`.
+- Store `KAGGLE_USERNAME` and `KAGGLE_KEY` in Colab secrets or environment variables.
+
+The notebook writes credentials to `~/.kaggle/kaggle.json` with restrictive permissions, never prints credential values, downloads the competition data with Kaggle CLI/API, extracts it to `/content/input/individual-test-thai-call-center-asr`, validates the sample submission schema and audio coverage, runs resumable inference, and writes:
 
 ```text
-/kaggle/working/submission.csv
+/content/submission.csv
 ```
 
-Do not run kaggle competitions submit. Manual download or normal Kaggle notebook output use is the allowed boundary for the generated CSV.
+Intermediate Colab artifacts are written under `/content/working`.
+
+Do not run kaggle competitions submit. Manual upload through the Kaggle UI is the allowed boundary for the generated CSV.
 ```
 
 - [ ] **Step 4: Run README test and verify it passes**
@@ -2542,7 +2566,7 @@ Expected output contains:
 tests/test_readme_contract.py::test_readme_documents_manual_submission_boundary_and_commands PASSED
 ```
 
-- [ ] **Step 5: Generate the final Kaggle submission locally from Typhoon single-space predictions**
+- [ ] **Step 5: Generate the final submission CSV locally from Typhoon single-space predictions**
 
 Run after `/Users/temicide/Documents/5_domain_final/Call-ASR/data/runs/predictions_typhoon-ai__typhoon-whisper-large-v3_single_space.csv` has `6261` rows and zero inference errors:
 
@@ -2614,7 +2638,7 @@ Expected output contains:
 
 ## Experiment Sequence
 
-Use this sequence after the harness passes tests. Each candidate generates a full `6261`-row prediction CSV, then a validated submission CSV. Upload only manually through Kaggle UI or the standard Kaggle notebook output panel.
+Use this sequence after the harness passes tests. Each candidate generates a full `6261`-row prediction CSV, then a validated submission CSV. In Colab, stop after `/content/submission.csv`; upload only manually through the Kaggle UI if a candidate is selected.
 
 1. Run `typhoon-ai/typhoon-whisper-large-v3` with `single_space`.
 
@@ -2713,7 +2737,7 @@ manual_001,2026-06-06T00:00:00Z,typhoon-ai/typhoon-whisper-large-v3,chunk=30 bat
 
 ## Self-Review Notes
 
-**Spec coverage:** This plan covers the Kaggle Notebook requirement in Task 11, the exact sample submission schema and row-order preservation in Task 3, local audio counts and prefix handling in Tasks 4 and 5, resumable model inference and logging in Task 8, Thai-safe normalization in Task 6, proxy validation metrics and manifests in Tasks 7 and 9, ensemble methods in Task 10, public leaderboard discipline in the Experiment Sequence, and documentation/manual submission boundaries in Task 12.
+**Spec coverage:** This plan covers the Colab Notebook requirement in Task 11, including Kaggle CLI/API credential handling, competition data download, extraction before reading, `/content` path defaults, and no automated submission. It also covers the exact sample submission schema and row-order preservation in Task 3, local audio counts and prefix handling in Tasks 4 and 5, resumable model inference and logging in Task 8, Thai-safe normalization in Task 6, proxy validation metrics and manifests in Tasks 7 and 9, ensemble methods in Task 10, public leaderboard discipline in the Experiment Sequence, and documentation/manual submission boundaries in Task 12.
 
 **Placeholder scan:** The plan avoids unresolved tokens and vague implementation directives. Every code-editing step includes concrete file content, exact commands, and expected output fragments.
 

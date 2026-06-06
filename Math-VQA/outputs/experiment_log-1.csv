@@ -1,0 +1,2 @@
+run,model,setup,preprocessing,prompt,postprocessing,local_score,public_lb,notes
+001,llava,Ollama HTTP API,image-id selector: raw/upscale/contrast/high_res,image-id selector: base/diagram + strict formatting,"prefix cleanup, Thai digit conversion, empty-output fallback",,,fallback_count=15; error_count=0; timeout_seconds=600; retries=1; output_dir=/content/math-vqa-output
