@@ -29,23 +29,23 @@ Local dataset path:
 
 Google Colab dataset path after download and extraction:
 
-`/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`
+`/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`
 
-Google Colab output path:
+Google Colab runtime artifact path:
 
-`/content/math-vqa-output/`
+`/content/working/`
 
-Kaggle notebook dataset path, retained only as a compatibility reference:
+Required final Google Colab submission path:
 
-`/kaggle/input/competitions/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`
+`/content/submission.csv`
 
 Expected Colab files after download:
 
 ```text
-/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/sample_submission.csv
-/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/train.csv
-/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/test.csv
-/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/images/images/623.jpg
+/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/sample_submission.csv
+/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/train.csv
+/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/test.csv
+/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/images/images/623.jpg
 ```
 
 | File                    | Local rows | Columns                      | Purpose                                                         |
@@ -112,8 +112,9 @@ Required mitigation:
   - Environment variables `KAGGLE_USERNAME` and `KAGGLE_KEY`.
   - Existing `/root/.kaggle/kaggle.json`.
   - Uploaded `kaggle.json` through `google.colab.files.upload()` when running in Colab.
-- The notebook must download competition data using the Kaggle CLI before loading CSVs, using `kaggle competitions download`.
-- The notebook must extract the downloaded archive into `/content/math-vqa-data/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`.
+- The notebook must keep Kaggle credentials secure by writing `kaggle.json` only to `/root/.kaggle/kaggle.json`, setting file permissions to `600`, never printing credential values, and never committing or persisting credentials in notebook output artifacts.
+- The notebook must download competition data using the Kaggle CLI or Kaggle API before loading any CSVs or images. A CLI implementation should use `kaggle competitions download`.
+- The notebook must extract the downloaded archive into `/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/` before any reads from `train.csv`, `test.csv`, `sample_submission.csv`, or image files.
 - If Kaggle credentials are missing, data download fails, or the user has not accepted competition rules, the notebook must fail with a readable message before data loading.
 - The notebook must contain a clear setup cell for Ollama and LLaVA.
 - Before running the Ollama install script, the setup cell must check whether `zstd` is on `PATH`. If missing and `apt-get` is available, it must install `zstd` with `apt-get update` and `apt-get install -y --no-install-recommends zstd`.
@@ -146,8 +147,10 @@ The notebook may also read `train.csv` for:
 The notebook writes:
 
 ```text
-/content/math-vqa-output/submission.csv
+/content/submission.csv
 ```
+
+The notebook may also copy the same final CSV to `/content/working/submission.csv` for convenience, but `/content/submission.csv` is the required final artifact.
 
 `submission.csv` requirements:
 
@@ -392,7 +395,7 @@ Every serious run should be logged.
 
 | Run | Model            | Setup     | Preprocessing | Prompt                   | Postprocessing | Local score | Public LB | Notes    |
 | --- | ---------------- | --------- | ------------- | ------------------------ | -------------- | ----------- | --------- | -------- |
-| 001 | LLaVA via Ollama | Kaggle T4 | raw RGB       | base short-answer prompt | basic cleanup  | n/a         | n/a       | baseline |
+| 001 | LLaVA via Ollama | Colab T4  | raw RGB       | base short-answer prompt | basic cleanup  | n/a         | n/a       | baseline |
 
 Log notes should include:
 
@@ -409,8 +412,8 @@ The Colab notebook should be organized into these sections:
 
 1. Colab environment and path setup
 2. Kaggle credential setup
-3. Competition data download with Kaggle CLI
-4. Data extraction to `/content/math-vqa-data/...`
+3. Competition data download with Kaggle CLI/API
+4. Data extraction to `/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`
 5. Colab system dependency setup, including `zstd` for Ollama extraction
 6. Data loading
 7. Data integrity checks
@@ -423,14 +426,14 @@ The Colab notebook should be organized into these sections:
 14. Test inference loop
 15. Prediction postprocessing
 16. Submission validation
-17. Write `/content/math-vqa-output/submission.csv`
-18. Save raw prediction logs for debugging
+17. Write `/content/submission.csv` and optionally copy it to `/content/working/submission.csv`
+18. Save raw prediction logs under `/content/working/` for debugging
 
 Required generated files:
 
 ```text
-/content/math-vqa-output/submission.csv
-/content/math-vqa-output/raw_predictions.csv
+/content/submission.csv
+/content/working/raw_predictions.csv
 ```
 
 `raw_predictions.csv` should contain:
@@ -453,7 +456,8 @@ Required generated files:
 The implementation is complete when:
 
 - The notebook runs end-to-end in Google Colab after Kaggle credentials are provided and competition rules are accepted.
-- The notebook produces `/content/math-vqa-output/submission.csv`.
+- The notebook downloads the Kaggle competition archive with the Kaggle CLI or API, extracts it into `/content/input/super-ai-engineer-ss-6-individual-test-thai-math-vqa-challen/`, and only then reads CSVs or images.
+- The notebook produces `/content/submission.csv`.
 - The submission file passes all validation checks.
 - Raw predictions are saved for error analysis.
 - At least one local smoke test on train images is shown.

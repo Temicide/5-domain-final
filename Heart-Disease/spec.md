@@ -4,35 +4,85 @@ Competition: https://www.kaggle.com/competitions/super-ai-engineer-ss-6-individu
 
 ## Goal
 
-Build the strongest possible Kaggle submission for predicting `History of HeartDisease or Attack` from tabular health survey features. The target labels are string classes: `Yes` and `No`.
+Build the strongest possible Google Colab-ready solution for predicting `History of HeartDisease or Attack` from tabular health survey features. The target labels are string classes: `Yes` and `No`.
 
 The local data strongly resembles BRFSS-style population survey data: binary health history fields, self-reported general health, demographics, income, education, BMI, and age. This should be treated as an imbalanced binary tabular classification problem.
 
-## Kaggle Notebook Requirement
+## Colab Notebook Requirement
 
-The deliverable must be a Kaggle Notebook ready solution. The notebook must:
+The deliverable must be a Google Colab-ready notebook solution. The notebook must:
 
-- Run end-to-end in the Kaggle notebook environment.
-- Read competition files from `/kaggle/input/...` when running on Kaggle, with local path fallbacks only for development.
-- Generate `/kaggle/working/submission.csv`.
-- Validate the generated CSV before saving or before declaring the run complete.
+- Run end-to-end in Google Colab from a fresh runtime.
+- Install or import required packages in notebook cells.
+- Authenticate to Kaggle inside Colab using either an uploaded `kaggle.json` file or Colab secrets/environment variables.
+- Never print Kaggle credentials, file contents from `kaggle.json`, or secret values.
+- Use the Kaggle CLI or Kaggle API inside Colab to download the competition data before reading any competition CSVs.
+- Extract the downloaded competition archive into a Colab input directory such as `/content/input/super-ai-engineer-ss-6-individual-heart-disease-prediction`.
+- Read competition files from `/content/input/...` after extraction when running in Colab.
+- Use `/content/working` for runtime artifacts and generate `/content/submission.csv`.
+- Validate the generated CSV before declaring the run complete.
+- Keep local development fallbacks under `/Users/temicide/Documents/5_domain_final/Heart-Disease`.
 - Not submit through the Kaggle API, Kaggle CLI, or any other automated submission mechanism.
 
-Manual upload or normal Kaggle notebook output use is allowed, but implementation must stop after generating `submission.csv`.
+Manual upload of `/content/submission.csv` to Kaggle is allowed, but implementation must stop after creating and validating the CSV.
+
+## Kaggle Data Access In Colab
+
+The notebook must support both credential flows below without exposing secrets:
+
+1. Uploaded `kaggle.json`:
+   - Prompt the user to upload `kaggle.json` with `google.colab.files.upload()`.
+   - Save it to `/root/.kaggle/kaggle.json`.
+   - Set file permissions to `600`.
+   - Do not display the uploaded JSON content.
+
+2. Colab secrets or environment variables:
+   - Read `KAGGLE_USERNAME` and `KAGGLE_KEY` from Colab secrets or environment variables.
+   - Export them only into the current process environment.
+   - Do not print either value.
+
+After credentials are available, data download must run before CSV loading, for example:
+
+```bash
+kaggle competitions download -c super-ai-engineer-ss-6-individual-heart-disease-prediction -p /content/input
+```
+
+Then extract the archive to:
+
+```text
+/content/input/super-ai-engineer-ss-6-individual-heart-disease-prediction
+```
+
+Accept either Kaggle CLI or `kaggle.api.kaggle_api_extended.KaggleApi` as long as the notebook performs the same download-and-extract workflow in Colab.
 
 ## Kaggle Context
 
-The local Kaggle skill credential check found legacy Kaggle credentials:
-
-- `KAGGLE_USERNAME` and `KAGGLE_KEY` are available.
-- `KAGGLE_API_TOKEN` is missing.
-- The `kaggle` CLI binary is not installed in this environment.
-
-The Kaggle competition page is a JavaScript app and the unauthenticated page shell did not expose the evaluation metric through `curl` or web search. Before final submission, verify the official metric in the Kaggle UI. Until then, optimize models in a metric-safe way:
+The competition page is a JavaScript app and unauthenticated page access may not expose the evaluation metric. Before final manual upload, verify the official metric in the Kaggle UI. Until then, optimize models in a metric-safe way:
 
 - Primary ranking metrics: ROC-AUC and PR-AUC.
 - Threshold metrics: F1, balanced accuracy, and accuracy.
 - Submission labels: convert probabilities to `Yes`/`No` using a validation-tuned threshold if the official metric is F1/accuracy-like; use calibrated ranking probabilities only internally.
+
+The notebook must use Kaggle only as the competition data source and optional manual upload destination. It must not automate competition submission.
+
+## Data Locations
+
+Colab paths:
+
+- Input root: `/content/input`
+- Competition data directory: `/content/input/super-ai-engineer-ss-6-individual-heart-disease-prediction`
+- Working directory: `/content/working`
+- Required submission path: `/content/submission.csv`
+- Optional copied artifact path: `/content/working/submission.csv`
+
+Local development fallbacks:
+
+- Project root: `/Users/temicide/Documents/5_domain_final/Heart-Disease`
+- Local data directory: `/Users/temicide/Documents/5_domain_final/Heart-Disease/data/super-ai-engineer-ss-6-individual-heart-disease-prediction`
+- Local output directory: `/Users/temicide/Documents/5_domain_final/Heart-Disease/outputs`
+- Local submission fallback: `/Users/temicide/Documents/5_domain_final/Heart-Disease/outputs/submissions/submission.csv`
+
+Path resolution should prefer Colab data only after the Kaggle download and extraction have produced the expected CSV files. If Colab paths are unavailable, use the local development fallback.
 
 ## Local Data Audit
 
@@ -126,39 +176,45 @@ Interpretation:
 
 Use this exact protocol before trusting leaderboard improvements:
 
-1. Drop only rows with missing target.
-2. Use `StratifiedKFold`, 5 folds, fixed seeds.
-3. Track ROC-AUC, PR-AUC, F1, accuracy, balanced accuracy, precision, recall, and confusion matrix.
-4. Tune thresholds out-of-fold only. Never tune threshold on public leaderboard feedback.
-5. Repeat final CV with at least 3 random seeds for top candidates.
-6. Compare every experiment against the current OOF baseline, not just public LB.
-7. Save OOF predictions for every serious model for later ensembling.
+1. Download and extract competition data in Colab before loading CSVs.
+2. Drop only rows with missing target.
+3. Use `StratifiedKFold`, 5 folds, fixed seeds.
+4. Track ROC-AUC, PR-AUC, F1, accuracy, balanced accuracy, precision, recall, and confusion matrix.
+5. Tune thresholds out-of-fold only. Never tune threshold on public leaderboard feedback.
+6. Repeat final CV with at least 3 random seeds for top candidates.
+7. Compare every experiment against the current OOF baseline, not just public LB.
+8. Save OOF predictions for every serious model for later ensembling.
 
 Suggested acceptance gates:
 
 - Any new feature/model must improve 5-fold OOF ROC-AUC or PR-AUC, or improve official-metric proxy after threshold tuning.
 - A leaderboard-only gain without OOF support is suspect.
+- A valid Colab run must create `/content/submission.csv` and pass submission validation.
 
 ## Modeling Ladder
 
-### Phase 1: Reproducible Baseline
+### Phase 1: Reproducible Colab Baseline
 
 Build one clean pipeline:
 
+- Install/import Kaggle access dependencies in Colab.
+- Resolve Kaggle credentials from uploaded `kaggle.json` or secrets/environment variables without printing them.
+- Download the competition archive via Kaggle CLI or API.
+- Extract data under `/content/input/super-ai-engineer-ss-6-individual-heart-disease-prediction`.
 - Read CSVs with `utf-8-sig`.
 - Rename/normalize `ID` safely.
 - Drop missing-target rows for supervised training.
 - Preserve categorical strings.
 - Impute BMI with median or leave numeric missing for tree models that support missing values.
-- Train LightGBM with native categorical features.
+- Train LightGBM with categorical handling or a robust encoded fallback.
 - Tune threshold on OOF predictions.
-- Write a complete submission.
+- Write and validate `/content/submission.csv`.
 
 ### Phase 2: Core GBDT Models
 
 Train and save OOF/test predictions from:
 
-- LightGBM native categorical.
+- LightGBM.
 - CatBoost with categorical features.
 - XGBoost using ordinal/category encoding.
 - ExtraTrees/RandomForest as a diversity model.
@@ -218,15 +274,16 @@ For accuracy-like metrics:
 Run experiments in this order:
 
 1. Confirm official Kaggle metric from UI.
-2. Implement baseline LightGBM native categorical 5-fold CV and submission.
-3. Add threshold tuning and report all threshold metrics.
-4. Add age/BMI bins and risk-count features.
-5. Train CatBoost and compare OOF.
-6. Train XGBoost and compare OOF.
-7. Build simple average ensemble.
-8. Build constrained weighted ensemble.
-9. Test calibration and threshold stability.
-10. Generate leaderboard-candidate CSVs only for models that improve OOF or have a clear diversity reason.
+2. Implement Colab credential handling and Kaggle download/extract workflow.
+3. Implement baseline LightGBM 5-fold CV and `/content/submission.csv` generation.
+4. Add threshold tuning and report all threshold metrics.
+5. Add age/BMI bins and risk-count features.
+6. Train CatBoost and compare OOF.
+7. Train XGBoost and compare OOF.
+8. Build simple average ensemble.
+9. Build constrained weighted ensemble.
+10. Test calibration and threshold stability.
+11. Generate candidate CSVs only for models that improve OOF or have a clear diversity reason.
 
 ## Submission Requirements
 
@@ -237,29 +294,7 @@ Submission file:
 - IDs must match test IDs exactly.
 - Target values must be only `Yes` or `No`.
 - No blank values.
-- Required output path on Kaggle: `/kaggle/working/submission.csv`.
-- Do not call Kaggle API/CLI submission commands from the notebook.
-
-Use this final conversion pattern:
-
-```python
-submission = pd.DataFrame({
-    "ID": test["ID"],
-    "History of HeartDisease or Attack": np.where(test_pred >= threshold, "Yes", "No"),
-})
-submission.to_csv("submission.csv", index=False)
-```
-
-## Current Best Plan
-
-The most likely path to a strong score is:
-
-1. Verify official metric.
-2. Build 5-fold LightGBM native categorical baseline.
-3. Tune threshold if the metric uses hard labels.
-4. Add compact domain/risk-count features.
-5. Add CatBoost and XGBoost for diversity.
-6. Blend OOF-validated predictions.
-7. Avoid public leaderboard overfitting; use leaderboard only as final confirmation.
-
-Based on local evidence, plain native-categorical LightGBM is the immediate baseline to beat: ROC-AUC `0.8623`, PR-AUC `0.3650`, best local F1 `0.4163` at threshold `0.195`.
+- Required output path in Colab: `/content/submission.csv`.
+- Optional mirrored output path in Colab: `/content/working/submission.csv`.
+- Local fallback output path: `/Users/temicide/Documents/5_domain_final/Heart-Disease/outputs/submissions/submission.csv`.
+- Do not call `kaggle competitions submit`, `KaggleApi.competition_submit`, or any automated submission equivalent.

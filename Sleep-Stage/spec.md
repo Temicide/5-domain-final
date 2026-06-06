@@ -10,17 +10,24 @@ Primary metric: **weighted F1-score**.
 
 The practical target is to beat the current accessible public leaderboard top score of about **0.62027 weighted F1**. Because the public leaderboard uses only 50% of the test data and the private leaderboard decides final placement, model selection must be driven by recording-group validation first and leaderboard feedback second.
 
-## Kaggle Notebook Requirement
+## Colab Notebook Requirement
 
-The deliverable must be a Kaggle Notebook ready solution. The notebook must:
+The deliverable must be a Google Colab-ready solution. The notebook must:
 
-- Run end-to-end in the Kaggle notebook environment.
-- Read competition files from `/kaggle/input/...` when running on Kaggle, with local path fallbacks only for development.
-- Generate `/kaggle/working/submission.csv`.
-- Validate the generated CSV before saving or before declaring the run complete.
-- Not submit through the Kaggle API, Kaggle CLI, or any other automated submission mechanism.
+- Run end-to-end in Google Colab from a fresh runtime.
+- Use the Kaggle CLI or Kaggle API inside Colab to download the competition data before any data files are read.
+- Extract the downloaded archive in Colab before training, validation, or prediction begins.
+- Handle Kaggle credentials securely by using either an uploaded `kaggle.json` file or Colab secrets/environment variables. The notebook must never print the username, key, or full credential file contents.
+- Use Colab defaults for runtime paths:
+  - `/content` as the runtime root.
+  - `/content/input` as the extracted competition data root.
+  - `/content/working` for caches and intermediate outputs.
+  - `/content/submission.csv` as the final submission CSV.
+- Retain local development fallbacks under `/Users/temicide/Documents/5_domain_final/Sleep-Stage`, including the existing local data directory and local `working/` output directory.
+- Generate and validate `submission.csv` before declaring the run complete.
+- Stop after creating the CSV. Do not automate competition submission through the Kaggle CLI, Kaggle API, notebook code, or any other mechanism.
 
-Manual upload or normal Kaggle notebook output use is allowed, but implementation must stop after generating `submission.csv`.
+Manual upload of the generated CSV to Kaggle is allowed outside the notebook flow, but the implementation must not contain or execute a competition submission command.
 
 ## Verified Competition Context
 
@@ -34,13 +41,35 @@ Source: authenticated Kaggle API via the local `kaggle` skill workflow.
 - Private leaderboard: remaining 50% of test data, used for final ranking.
 - Rules: no cheating, no hand-labeling or human prediction of validation/test records, follow Kaggle foundational rules.
 
+## Data Access And Paths
+
+Competition slug:
+
+`super-ai-engineer-ss-6-individual-sleep-stage-classification`
+
+Colab data flow:
+
+1. Start from `/content`.
+2. Create `/content/input` and `/content/working`.
+3. Configure Kaggle credentials without printing secrets.
+4. Download the competition archive using one of:
+   - `kaggle competitions download -c super-ai-engineer-ss-6-individual-sleep-stage-classification -p /content/input`
+   - `KaggleApi().competition_download_files(..., path="/content/input")`
+5. Extract the archive into `/content/input/super-ai-engineer-ss-6-individual-sleep-stage-classification`.
+6. Read train, test, and sample submission files only after extraction has completed.
+7. Write the final CSV to `/content/submission.csv`.
+
+Local development fallback:
+
+`/Users/temicide/Documents/5_domain_final/Sleep-Stage/data/super-ai-engineer-ss-6-individual-sleep-stage-classification`
+
+Local output fallback:
+
+`/Users/temicide/Documents/5_domain_final/Sleep-Stage/working/submission.csv`
+
 ## Data Profile
 
-Local data root:
-
-`Sleep-Stage/data/super-ai-engineer-ss-6-individual-sleep-stage-classification`
-
-Files:
+Files after extraction:
 
 - `train/train/*.csv`: 83 continuous training recordings.
 - `test_segment/test_segment/test001` through `test010`: 10 test subject folders.
@@ -149,18 +178,19 @@ Useful references:
 
 Use this protocol for every serious experiment:
 
-1. Convert train recordings into 30-second epochs of 480 rows.
-2. Build features or model inputs per epoch.
-3. Split by full recording, not by rows and not by shuffled epochs.
-4. Use 5-fold `GroupKFold` over the 83 training recordings.
-5. Report weighted F1 per fold, mean, and std.
-6. Also report per-class F1 for W, N1, N2, N3, R.
-7. Track confusion matrix, especially:
+1. Download and extract the competition data in Colab, or resolve the local fallback data root during development.
+2. Convert train recordings into 30-second epochs of 480 rows.
+3. Build features or model inputs per epoch.
+4. Split by full recording, not by rows and not by shuffled epochs.
+5. Use 5-fold `GroupKFold` over the 83 training recordings.
+6. Report weighted F1 per fold, mean, and std.
+7. Also report per-class F1 for W, N1, N2, N3, R.
+8. Track confusion matrix, especially:
    - N1 vs W
    - N1 vs N2
    - N3 vs N2
    - R vs N1/N2
-8. Only generate leaderboard-candidate CSVs for models that improve grouped validation or test a clearly isolated leaderboard hypothesis.
+9. Only generate leaderboard-candidate CSVs for models that improve grouped validation or test a clearly isolated leaderboard hypothesis.
 
 Never use row-level random splits. They leak adjacent samples from the same labeled segment and will overstate performance.
 
@@ -170,11 +200,13 @@ Never use row-level random splits. They leak adjacent samples from the same labe
 
 Build a reproducible `src/` pipeline:
 
+- Configure Colab paths and local fallbacks.
+- Download and extract the competition archive before loading data.
 - Parse train CSVs into epoch records.
 - Parse test segment CSVs by `id`.
-- Cache features as compressed NumPy/Parquet.
+- Cache features as compressed NumPy/Parquet under `/content/working` in Colab or local `working/` during development.
 - Train and validate grouped models.
-- Generate Kaggle `submission.csv`.
+- Generate and validate `submission.csv`.
 
 Feature set:
 
@@ -192,9 +224,9 @@ Models:
 
 - HistGradientBoosting as the first strong baseline.
 - ExtraTrees or RandomForest as a diversity model.
-- If installable, add LightGBM/CatBoost; these are likely stronger than sklearn HGB for this tabular problem.
+- If installable in Colab without destabilizing the runtime, add LightGBM/CatBoost; these are likely stronger than sklearn HGB for this tabular problem.
 
-Expected local grouped F1 target:
+Expected grouped F1 target:
 
 - Static features: `0.47-0.52`.
 - With richer features and tuning: `0.52-0.56`.
@@ -238,123 +270,18 @@ Expected gain:
 
 - `+0.01` to `+0.04` if probabilities are calibrated.
 
-### Phase 4: Lightweight Deep Sequence Model
+## Submission Output Contract
 
-Only after the tabular/context baseline is reproducible.
+The final run must produce:
 
-Inputs:
+- `/content/submission.csv` in Colab.
+- `/Users/temicide/Documents/5_domain_final/Sleep-Stage/working/submission.csv` for local fallback runs.
 
-- 480 x 8 raw epoch signal.
-- Optional per-epoch feature vector.
-- Sequence windows of 9-31 epochs around target epoch.
+The submission file must:
 
-Candidate models:
+- Have exactly the columns `id,labels`.
+- Match `sample_submission.csv` row count and ID order exactly.
+- Use only labels `W`, `N1`, `N2`, `N3`, and `R`.
+- Contain no missing labels.
 
-- 1D CNN per epoch + BiLSTM/GRU over epochs.
-- Temporal convolution network over epoch embeddings.
-- Small transformer over epoch embeddings if compute allows.
-
-Training:
-
-- Grouped validation by recording.
-- Class-weighted cross-entropy or focal loss.
-- Mixup/noise augmentation on BVP/ACC only if validation improves.
-- Early stopping on weighted F1, not loss.
-
-This may exceed the available contest time. Use it only if Phase 1-3 plateau below public leaderboard.
-
-### Phase 5: Ensemble and Submission Selection
-
-Blend probability outputs from:
-
-- HGB/static features.
-- HGB/context features.
-- ExtraTrees/context features.
-- Optional LightGBM/CatBoost.
-- Optional neural sequence model.
-
-Use validation to choose blend weights. Start with simple weighted average:
-
-- 50% best context boosting model.
-- 25% static boosting model.
-- 25% ExtraTrees or another decorrelated model.
-
-Then apply temporal smoothing/Viterbi to the blended probabilities.
-
-## Submission Strategy
-
-With 5 submissions/day:
-
-1. Generate a valid baseline CSV early to confirm format.
-2. Generate a CSV from the best static feature model.
-3. Generate a CSV from the best context feature model.
-4. Generate a CSV from context model plus temporal smoothing.
-5. Generate a CSV from the ensemble/smoothing variant.
-
-Any actual leaderboard upload must be manual and outside the notebook. The notebook must not call Kaggle API/CLI submission commands.
-
-Keep a submission log:
-
-| Submission | Local CV | Public LB | Change |
-| --- | ---: | ---: | --- |
-| baseline | | | |
-| static HGB | | | |
-| context HGB | | | |
-| smoothed context | | | |
-| ensemble | | | |
-
-Do not overfit to the public leaderboard. If a change improves public LB but hurts grouped CV, require a second related submission or a clear reason before trusting it.
-
-## Implementation Tasks
-
-1. Create a clean feature-generation script in `Sleep-Stage/src`.
-2. Cache train/test epoch features with deterministic feature names.
-3. Implement grouped CV evaluation with weighted F1 and per-class F1.
-4. Implement valid submission generation from test segment IDs.
-5. Train static HGB and ExtraTrees baselines.
-6. Add context/rolling features and repeat grouped CV.
-7. Add probability smoothing/Viterbi decoding.
-8. Generate `submission.csv` from the best validated model.
-9. If time remains, add LightGBM/CatBoost or a small CNN/GRU sequence model.
-
-## Success Criteria
-
-Minimum:
-
-- Valid submission file for all 7,832 test IDs.
-- Local grouped weighted F1 above `0.50`.
-- Public leaderboard score above the simple baseline tier.
-
-Competitive:
-
-- Local grouped weighted F1 above `0.55`.
-- Public leaderboard score near or above `0.62`.
-- No large mismatch between grouped CV and public leaderboard behavior.
-
-Winning attempt:
-
-- Context boosted model plus temporal decoding and ensemble.
-- Public leaderboard above current top while retaining grouped-CV robustness.
-- Final selected submission is not chosen solely by public score.
-
-## Key Risks
-
-- Public leaderboard overfitting because only 50% of test is visible.
-- Leakage from random epoch or row splits.
-- Subject/domain shift: test has only 10 subjects, so individual physiology can dominate.
-- N3 underprediction due to class imbalance.
-- Sequence smoothing can improve common stages while damaging short true N1/R events.
-- Sample submission has only the first three labels filled; all labels must be generated.
-
-## Current Recommendation
-
-The best path is **not** to start with a large neural model. The fastest high-scoring route is:
-
-1. Rich 30-second epoch features.
-2. Grouped validation by full recording.
-3. Gradient-boosted tabular model.
-4. Neighboring-epoch and rolling context features.
-5. Probability smoothing or Viterbi decoding.
-6. Small probability ensemble.
-
-This matches both the local baseline evidence and the wearable sleep-stage literature.
+The notebook must print validation summaries such as row count, ID match status, label counts, and the output path. It must not print Kaggle credentials and must not run any competition submission command.

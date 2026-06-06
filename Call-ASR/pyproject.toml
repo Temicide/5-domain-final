@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "call-asr"
+version = "0.1.0"
+description = "Thai call-center ASR Colab notebook harness"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets>=2.20.0",
+    "jiwer>=3.0.4",
+    "librosa>=0.10.2.post1",
+    "numpy>=1.26.4",
+    "pandas>=2.2.2",
+    "pytest>=8.2.2",
+    "soundfile>=0.12.1",
+    "torch>=2.3.1",
+    "transformers>=4.41.2",
+]
+
+[project.scripts]
+call-asr-audit = "call_asr.audit_audio:main"
+call-asr-infer = "call_asr.infer:main"
+call-asr-score = "call_asr.score_proxy:main"
+call-asr-ensemble = "call_asr.ensemble:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
